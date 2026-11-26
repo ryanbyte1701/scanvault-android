@@ -19,7 +19,7 @@ class DarkColorsTest {
         val (h0, _, l0) = DarkColors.rgbToHsl(DarkColors.parseHex(DarkPreset.NAVY.hex)!!)
         val (h, s, l) = hsl(DarkColors.from(DarkPreset.NAVY.hex).background)
         assertEquals(h0, h, 2f)
-        assertEquals(0.45f, s, 0.02f)
+        assertEquals(0.45f, s, 0.04f) // 8-bit rounding at this low lightness
         assertEquals(l0, l, 0.01f)
     }
 
