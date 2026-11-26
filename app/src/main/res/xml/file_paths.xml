@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Camera captures waiting to upload, and decrypted copies opened in other apps. Both are cleared on launch and sign-out. -->
+    <cache-path name="captures" path="captures/" />
+    <cache-path name="shared" path="shared/" />
+</paths>

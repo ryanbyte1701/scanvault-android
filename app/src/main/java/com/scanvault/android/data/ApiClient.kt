@@ -1,0 +1,234 @@
+package com.scanvault.android.data
+
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import kotlinx.serialization.KSerializer
+import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.Json
+import kotlinx.serialization.json.JsonArray
+import kotlinx.serialization.json.JsonObject
+import okhttp3.HttpUrl
+import okhttp3.HttpUrl.Companion.toHttpUrl
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.MultipartBody
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody
+import okhttp3.RequestBody.Companion.toRequestBody
+import okhttp3.Response
+import java.io.IOException
+import java.io.InputStream
+import java.util.concurrent.TimeUnit
+
+/** Thrown for any non-2xx response from the server. */
+open class ApiException(val status: Int, message: String, val code: String? = null) : IOException(message)
+
+/** HTTP 423: the server's vault is locked and must be unlocked with the passphrase or recovery key. */
+class VaultLockedException(message: String) : ApiException(423, message, "locked")
+
+/** HTTP 401: the token is missing, expired or revoked. */
+class UnauthorizedException(message: String) : ApiException(401, message)
+
+/** A file to upload whose bytes are opened lazily, so large scans stream without being held in memory. */
+class UploadPart(
+    val filename: String,
+    val contentType: String,
+    val size: Long,
+    val open: () -> InputStream,
+)
+
+/**
+ * Thin REST client for the ScanVault server. All encryption and backups happen server-side;
+ * the app only ever sees decrypted content over the (ideally TLS) connection.
+ */
+class ApiClient(
+    baseUrl: String,
+    private val tokenProvider: () -> String?,
+    private val http: OkHttpClient = defaultHttpClient(),
+) {
+    private val base: HttpUrl = normalizeBaseUrl(baseUrl)
+
+    val json = Json {
+        ignoreUnknownKeys = true
+        explicitNulls = false
+        coerceInputValues = true
+    }
+
+    fun url(path: String): HttpUrl = base.newBuilder().addEncodedPathSegments(path.trimStart('/')).build()
+
+    fun authHeader(): String? = tokenProvider()?.let { "Bearer $it" }
+
+    // --- Auth / status -------------------------------------------------------------------
+
+    suspend fun status(): ServerStatus = get("api/status", ServerStatus.serializer())
+
+    suspend fun login(username: String, password: String): LoginResponse =
+        send("POST", "api/auth/login", jsonBody(LoginRequest(username, password), LoginRequest.serializer()),
+            LoginResponse.serializer(), authenticated = false)
+
+    suspend fun logout() {
+        sendNoContent("POST", "api/auth/logout", "{}".toRequestBody(JSON))
+    }
+
+    suspend fun unlock(passphrase: String? = null, recoveryKey: String? = null) {
+        sendNoContent("POST", "api/vault/unlock",
+            jsonBody(UnlockRequest(passphrase, recoveryKey), UnlockRequest.serializer()))
+    }
+
+    // --- Patients ------------------------------------------------------------------------
+
+    suspend fun patients(): List<Patient> = get("api/patients", ListSerializer(Patient.serializer()))
+
+    suspend fun patient(id: String): Patient = get("api/patients/${seg(id)}", Patient.serializer())
+
+    suspend fun createPatient(input: PatientInput): Patient =
+        send("POST", "api/patients", jsonBody(input, PatientInput.serializer()), Patient.serializer())
+
+    suspend fun deletePatient(id: String) = sendNoContent("DELETE", "api/patients/${seg(id)}", null)
+
+    suspend fun importToPatient(patientId: String, parts: List<UploadPart>): ImportResult =
+        send("POST", "api/patients/${seg(patientId)}/import", multipart(parts, null), ImportResult.serializer())
+
+    // --- Studies -------------------------------------------------------------------------
+
+    suspend fun studies(patientId: String): List<Study> =
+        get("api/patients/${seg(patientId)}/studies", ListSerializer(Study.serializer()))
+
+    suspend fun study(id: String): Study = get("api/studies/${seg(id)}", Study.serializer())
+
+    suspend fun createStudy(patientId: String, input: StudyInput): Study =
+        send("POST", "api/patients/${seg(patientId)}/studies", jsonBody(input, StudyInput.serializer()),
+            Study.serializer())
+
+    suspend fun deleteStudy(id: String) = sendNoContent("DELETE", "api/studies/${seg(id)}", null)
+
+    // --- Files ---------------------------------------------------------------------------
+
+    suspend fun files(studyId: String): List<VaultFile> =
+        get("api/studies/${seg(studyId)}/files", ListSerializer(VaultFile.serializer()))
+
+    /** Uploads one or more files. The server may return the created file list or a single file. */
+    suspend fun upload(studyId: String, parts: List<UploadPart>, kind: String?): List<VaultFile> =
+        withContext(Dispatchers.IO) {
+            execute(request("POST", "api/studies/${seg(studyId)}/files", multipart(parts, kind))) { body ->
+                val element = json.parseToJsonElement(body)
+                if (element is JsonArray) {
+                    json.decodeFromJsonElement(ListSerializer(VaultFile.serializer()), element)
+                } else {
+                    val obj = element as JsonObject
+                    val files = obj["files"]
+                    if (files != null) json.decodeFromJsonElement(ListSerializer(VaultFile.serializer()), files)
+                    else listOf(json.decodeFromJsonElement(VaultFile.serializer(), obj))
+                }
+            }
+        }
+
+    suspend fun deleteFile(id: String) = sendNoContent("DELETE", "api/files/${seg(id)}", null)
+
+    fun contentUrl(fileId: String): String = url("api/files/${seg(fileId)}/content").toString()
+
+    fun thumbnailUrl(fileId: String): String = url("api/files/${seg(fileId)}/thumbnail").toString()
+
+    /** Streams a file's decrypted content into [sink]. */
+    suspend fun download(fileId: String, sink: (InputStream) -> Unit) = withContext(Dispatchers.IO) {
+        val response = http.newCall(request("GET", "api/files/${seg(fileId)}/content", null)).execute()
+        response.use {
+            if (!it.isSuccessful) throw errorFor(it)
+            sink(it.body!!.byteStream())
+        }
+    }
+
+    // --- Plumbing ------------------------------------------------------------------------
+
+    private fun seg(id: String): String = java.net.URLEncoder.encode(id, "UTF-8").replace("+", "%20")
+
+    private fun <T> jsonBody(value: T, serializer: KSerializer<T>): RequestBody =
+        json.encodeToString(serializer, value).toRequestBody(JSON)
+
+    private fun multipart(parts: List<UploadPart>, kind: String?): RequestBody {
+        val builder = MultipartBody.Builder().setType(MultipartBody.FORM)
+        if (kind != null) builder.addFormDataPart("kind", kind)
+        parts.forEach { part ->
+            builder.addFormDataPart("file", part.filename, StreamingBody(part))
+        }
+        return builder.build()
+    }
+
+    private fun request(method: String, path: String, body: RequestBody?, authenticated: Boolean = true): Request {
+        val builder = Request.Builder().url(url(path)).header("Accept", "application/json")
+        if (authenticated) authHeader()?.let { builder.header("Authorization", it) }
+        builder.method(method, body ?: if (method == "POST" || method == "PUT") ByteArray(0).toRequestBody() else null)
+        return builder.build()
+    }
+
+    private suspend fun <T> get(path: String, serializer: KSerializer<T>): T =
+        send("GET", path, null, serializer)
+
+    private suspend fun <T> send(
+        method: String,
+        path: String,
+        body: RequestBody?,
+        serializer: KSerializer<T>,
+        authenticated: Boolean = true,
+    ): T = withContext(Dispatchers.IO) {
+        execute(request(method, path, body, authenticated)) { json.decodeFromString(serializer, it) }
+    }
+
+    private suspend fun sendNoContent(method: String, path: String, body: RequestBody?) = withContext(Dispatchers.IO) {
+        execute(request(method, path, body)) { }
+    }
+
+    private fun <T> execute(request: Request, parse: (String) -> T): T {
+        http.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw errorFor(response)
+            return parse(response.body?.string().orEmpty())
+        }
+    }
+
+    private fun errorFor(response: Response): ApiException {
+        val raw = runCatching { response.body?.string() }.getOrNull().orEmpty()
+        val parsed = runCatching { json.decodeFromString(ErrorBody.serializer(), raw) }.getOrNull()
+        val message = parsed?.error ?: response.message.ifBlank { "HTTP ${response.code}" }
+        return when {
+            response.code == 423 || parsed?.code == "locked" -> VaultLockedException(message)
+            response.code == 401 -> UnauthorizedException(message)
+            else -> ApiException(response.code, message, parsed?.code)
+        }
+    }
+
+    private class StreamingBody(private val part: UploadPart) : RequestBody() {
+        override fun contentType() = part.contentType.toMediaType()
+        override fun contentLength() = if (part.size > 0) part.size else -1L
+        override fun writeTo(sink: okio.BufferedSink) {
+            part.open().use { input ->
+                val buffer = ByteArray(64 * 1024)
+                while (true) {
+                    val read = input.read(buffer)
+                    if (read == -1) break
+                    sink.write(buffer, 0, read)
+                }
+            }
+        }
+    }
+
+    companion object {
+        private val JSON = "application/json; charset=utf-8".toMediaType()
+
+        fun defaultHttpClient(): OkHttpClient = OkHttpClient.Builder()
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(5, TimeUnit.MINUTES)
+            .writeTimeout(10, TimeUnit.MINUTES)
+            .build()
+
+        /** Accepts "nas.local:8080", "https://host/" or "https://host/scanvault" and returns a URL ending in "/". */
+        fun normalizeBaseUrl(input: String): HttpUrl {
+            var value = input.trim()
+            require(value.isNotEmpty()) { "Server address is empty" }
+            if (!value.startsWith("http://", true) && !value.startsWith("https://", true)) {
+                value = "https://$value"
+            }
+            if (!value.endsWith("/")) value += "/"
+            return value.toHttpUrl()
+        }
+    }
+}

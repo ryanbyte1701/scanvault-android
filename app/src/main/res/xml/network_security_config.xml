@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<network-security-config>
+    <!--
+      ScanVault is self-hosted, so the server is often on a home network or VPN with a
+      private certificate authority. Trust user-installed CAs and allow http for LAN use;
+      the login screen warns when an http:// address is entered.
+    -->
+    <base-config cleartextTrafficPermitted="true">
+        <trust-anchors>
+            <certificates src="system" />
+            <certificates src="user" />
+        </trust-anchors>
+    </base-config>
+</network-security-config>
