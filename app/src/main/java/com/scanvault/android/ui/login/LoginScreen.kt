@@ -11,12 +11,14 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material3.Button
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -36,7 +38,7 @@ import com.scanvault.android.ui.components.userMessage
 import kotlinx.coroutines.launch
 
 @Composable
-fun LoginScreen(container: AppContainer, onSignedIn: () -> Unit) {
+fun LoginScreen(container: AppContainer, onOpenSettings: () -> Unit, onSignedIn: () -> Unit) {
     var server by rememberSaveable { mutableStateOf(container.store.serverUrl.orEmpty()) }
     var username by rememberSaveable { mutableStateOf(container.store.username.orEmpty()) }
     var password by remember { mutableStateOf("") }
@@ -120,6 +122,10 @@ fun LoginScreen(container: AppContainer, onSignedIn: () -> Unit) {
                 enabled = !busy && server.isNotBlank() && username.isNotBlank() && password.isNotEmpty(),
                 modifier = Modifier.fillMaxWidth(),
             ) { Text(if (busy) "Signing in…" else "Sign in") }
+            TextButton(onClick = onOpenSettings) {
+                Icon(Icons.Default.Palette, contentDescription = null)
+                Text("  Appearance")
+            }
         }
     }
 }

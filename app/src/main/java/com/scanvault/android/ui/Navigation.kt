@@ -17,6 +17,7 @@ import com.scanvault.android.ui.files.ImageViewerScreen
 import com.scanvault.android.ui.login.LoginScreen
 import com.scanvault.android.ui.patients.PatientDetailScreen
 import com.scanvault.android.ui.patients.PatientsScreen
+import com.scanvault.android.ui.settings.SettingsScreen
 import com.scanvault.android.ui.studies.StudyScreen
 
 // Navigation decodes path arguments itself, so only encode here.
@@ -43,12 +44,19 @@ fun ScanVaultNavHost(container: AppContainer) {
         startDestination = startDestination,
     ) {
         composable("login") {
-            LoginScreen(container) {
+            LoginScreen(container, onOpenSettings = { nav.navigate("settings") }) {
                 nav.navigate("patients") { popUpTo("login") { inclusive = true } }
             }
         }
         composable("patients") {
-            PatientsScreen(container, onOpen = { nav.navigate("patient/${enc(it)}") })
+            PatientsScreen(
+                container,
+                onOpen = { nav.navigate("patient/${enc(it)}") },
+                onOpenSettings = { nav.navigate("settings") },
+            )
+        }
+        composable("settings") {
+            SettingsScreen(container, onBack = { nav.popBackStack() })
         }
         composable(
             "patient/{id}",

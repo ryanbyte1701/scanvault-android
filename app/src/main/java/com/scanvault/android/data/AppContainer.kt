@@ -26,6 +26,7 @@ sealed interface SessionState {
  */
 class AppContainer(private val context: Context) {
     val store = SecureStore(context)
+    val theme = ThemeStore(context)
 
     private val baseHttp: OkHttpClient = ApiClient.defaultHttpClient()
 
