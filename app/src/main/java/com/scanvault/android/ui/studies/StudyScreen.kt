@@ -90,6 +90,13 @@ data class StudyDetail(val study: Study, val files: List<VaultFile>)
 
 data class UploadProgress(val done: Int, val total: Int, val current: String)
 
+data class UploadSummary(val uploaded: Int, val duplicates: Int) {
+    override fun toString(): String = buildString {
+        append("Uploaded $uploaded file(s)")
+        if (duplicates > 0) append(", $duplicates already in this study")
+    }
+}
+
 class StudyViewModel(private val container: AppContainer, private val studyId: String) : ViewModel() {
     private val _state = MutableStateFlow<Loadable<StudyDetail>>(Loadable.Loading)
     val state = _state.asStateFlow()
@@ -106,19 +113,20 @@ class StudyViewModel(private val container: AppContainer, private val studyId: S
     }
 
     /** Uploads files one at a time so each gets its own kind and the user sees progress. */
-    suspend fun uploadAll(parts: List<UploadPart>, forcedKind: String? = null): Result<Int> {
+    suspend fun uploadAll(parts: List<UploadPart>, forcedKind: String? = null): Result<UploadSummary> {
         var uploaded = 0
+        var duplicates = 0
         var failure: Throwable? = null
         for ((i, part) in parts.withIndex()) {
             _upload.value = UploadProgress(i, parts.size, part.filename)
             container.call { it.upload(studyId, listOf(part), forcedKind ?: kindFor(part)) }
-                .onSuccess { uploaded++ }
+                .onSuccess { files -> if (files.isNotEmpty() && files.all { it.duplicate }) duplicates++ else uploaded++ }
                 .onFailure { failure = it }
             if (failure != null) break
         }
         _upload.value = null
         load()
-        return failure?.let { Result.failure<Int>(it) } ?: Result.success(uploaded)
+        return failure?.let { Result.failure<UploadSummary>(it) } ?: Result.success(UploadSummary(uploaded, duplicates))
     }
 
     suspend fun delete(file: VaultFile): Result<Unit> =
@@ -161,7 +169,7 @@ fun StudyScreen(
     fun startUpload(parts: List<UploadPart>, kind: String? = null, cleanup: () -> Unit = {}) {
         scope.launch {
             vm.uploadAll(parts, kind)
-                .onSuccess { snackbar.showSnackbar("Uploaded $it file(s)") }
+                .onSuccess { snackbar.showSnackbar(it.toString()) }
                 .onFailure { snackbar.showSnackbar("Upload failed: ${it.userMessage()}") }
             cleanup()
         }

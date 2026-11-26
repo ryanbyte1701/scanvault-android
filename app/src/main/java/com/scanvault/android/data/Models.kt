@@ -83,6 +83,8 @@ data class VaultFile(
     @SerialName("uploaded_at") val uploadedAt: String? = null,
     @SerialName("has_thumbnail") val hasThumbnail: Boolean = false,
     val dicom: JsonObject? = null,
+    /** True when the server already had these exact bytes in the study and skipped storing a copy. */
+    val duplicate: Boolean = false,
 ) {
     val isImage: Boolean get() = kind == KIND_IMAGE || contentType.startsWith("image/")
 

@@ -192,6 +192,9 @@ class ApiClient(
         return when {
             response.code == 423 || parsed?.code == "locked" -> VaultLockedException(message)
             response.code == 401 -> UnauthorizedException(message)
+            parsed?.code == "setup_required" ->
+                ApiException(response.code, "Finish setting up ScanVault in its web interface first.", parsed.code)
+            response.code == 413 -> ApiException(413, "File is larger than the server's upload limit.", parsed?.code)
             else -> ApiException(response.code, message, parsed?.code)
         }
     }

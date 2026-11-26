@@ -92,6 +92,23 @@ class ApiClientTest {
         assertEquals("f1", api.upload("s1", listOf(part), null).single().id)
     }
 
+    @Test fun setupRequiredAndTooLargeGetFriendlyMessages() = runTest {
+        server.enqueue(json("""{"error":"Setup required","code":"setup_required"}""", 409))
+        server.enqueue(json("""{"error":"Too large"}""", 413))
+        try { api.patients(); fail() } catch (e: ApiException) {
+            assertEquals("setup_required", e.code); assertTrue(e.message!!.contains("setting up"))
+        }
+        try { api.patients(); fail() } catch (e: ApiException) {
+            assertEquals(413, e.status); assertTrue(e.message!!.contains("upload limit"))
+        }
+    }
+
+    @Test fun duplicateFlagParses() = runTest {
+        server.enqueue(json("""[{"id":"f1","study_id":"s1","patient_id":"p1","filename":"a.jpg","content_type":"image/jpeg","sha256":"ab","duplicate":true}]"""))
+        val part = UploadPart("a.jpg", "image/jpeg", 1) { byteArrayOf(1).inputStream() }
+        assertTrue(api.upload("s1", listOf(part), null).single().duplicate)
+    }
+
     @Test fun unlockPostsRecoveryKey() = runTest {
         server.enqueue(json("""{"unlocked":true}"""))
         api.unlock(recoveryKey = "AAAA-BBBB")
