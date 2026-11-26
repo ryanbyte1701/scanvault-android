@@ -7,11 +7,20 @@ import org.junit.Test
 class DarkColorsTest {
     private fun hsl(argb: Long) = DarkColors.rgbToHsl((argb and 0xFFFFFF).toInt())
 
-    @Test fun presetsKeepTheirOwnColorAsBackground() {
-        // All web presets are already within the 13% / 45% caps, so they pass through unchanged.
-        DarkPreset.entries.forEach { p ->
+    @Test fun presetsWithinCapsKeepTheirOwnColorAsBackground() {
+        // Every preset except Navy is already within the 13% lightness / 45% saturation caps.
+        DarkPreset.entries.filter { it != DarkPreset.NAVY }.forEach { p ->
             assertEquals(p.label, p.hex, DarkColors.toHex(DarkColors.from(p.hex).background))
         }
+    }
+
+    @Test fun navyIsDesaturatedToTheCapButKeepsHueAndLightness() {
+        // #0b1426 is about 55% saturated, so the web rule caps it at 45%.
+        val (h0, _, l0) = DarkColors.rgbToHsl(DarkColors.parseHex(DarkPreset.NAVY.hex)!!)
+        val (h, s, l) = hsl(DarkColors.from(DarkPreset.NAVY.hex).background)
+        assertEquals(h0, h, 2f)
+        assertEquals(0.45f, s, 0.02f)
+        assertEquals(l0, l, 0.01f)
     }
 
     @Test fun brightColorsAreCappedLikeTheWebApp() {
