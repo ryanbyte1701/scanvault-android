@@ -25,8 +25,26 @@ sealed interface SessionState {
  * current API client, and tracks whether the user is signed in and the vault unlocked.
  */
 class AppContainer(private val context: Context) {
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
     val store = SecureStore(context)
-    val theme = ThemeStore(context)
+    val theme = ThemeStore(context).also { store ->
+        store.onChanged = { settings ->
+            if (_session.value != SessionState.SignedOut) {
+                appScope.launch {
+                    runCatching {
+                        api.savePrefs(ServerPrefs(theme = settings.mode.wire, darkColor = settings.darkColor))
+                    }
+                }
+            }
+        }
+    }
+
+    /** Pulls the user's theme from the server so it matches the web app. Best effort. */
+    fun syncThemeFromServer() {
+        if (_session.value == SessionState.SignedOut) return
+        appScope.launch { runCatching { api.prefs() }.onSuccess { theme.applyServer(it) } }
+    }
 
     private val baseHttp: OkHttpClient = ApiClient.defaultHttpClient()
 
@@ -80,8 +98,6 @@ class AppContainer(private val context: Context) {
     fun markLocked() { if (_session.value != SessionState.SignedOut) _session.value = SessionState.Locked }
 
     fun markUnlocked() { if (_session.value != SessionState.SignedOut) _session.value = SessionState.Ready }
-
-    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
 
     /** Revokes the token on the server (best effort) and forgets it locally. */
     fun logout() {

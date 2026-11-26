@@ -75,6 +75,13 @@ class ApiClient(
             jsonBody(UnlockRequest(passphrase, recoveryKey), UnlockRequest.serializer()))
     }
 
+    // --- Preferences ---------------------------------------------------------------------
+
+    suspend fun prefs(): ServerPrefs = get("api/prefs", ServerPrefs.serializer())
+
+    suspend fun savePrefs(prefs: ServerPrefs): ServerPrefs =
+        send("PUT", "api/prefs", jsonBody(prefs, ServerPrefs.serializer()), ServerPrefs.serializer())
+
     // --- Patients ------------------------------------------------------------------------
 
     suspend fun patients(): List<Patient> = get("api/patients", ListSerializer(Patient.serializer()))
@@ -124,6 +131,42 @@ class ApiClient(
         }
 
     suspend fun deleteFile(id: String) = sendNoContent("DELETE", "api/files/${seg(id)}", null)
+
+    /**
+     * Renders a DICOM file server-side with a true window/level in modality units (HU for CT).
+     * Omit [center]/[width] to use the file's own default window.
+     */
+    suspend fun render(fileId: String, center: Double? = null, width: Double? = null, frame: Int? = null): RenderedImage =
+        withContext(Dispatchers.IO) {
+            val url = url("api/files/${seg(fileId)}/render").newBuilder().apply {
+                center?.let { addQueryParameter("wc", fmt(it)) }
+                width?.let { addQueryParameter("ww", fmt(it)) }
+                frame?.let { addQueryParameter("frame", it.toString()) }
+            }.build()
+            val builder = Request.Builder().url(url).header("Accept", "image/jpeg")
+            authHeader()?.let { builder.header("Authorization", it) }
+            http.newCall(builder.build()).execute().use { r ->
+                if (!r.isSuccessful) throw errorFor(r)
+                fun d(name: String) = r.header(name)?.toDoubleOrNull()
+                fun i(name: String) = r.header(name)?.toIntOrNull()
+                RenderedImage(
+                    bytes = r.body!!.bytes(),
+                    center = d("X-Window-Center") ?: center ?: 0.0,
+                    width = d("X-Window-Width") ?: width ?: 1.0,
+                    defaultCenter = d("X-Default-Center"),
+                    defaultWidth = d("X-Default-Width"),
+                    min = d("X-Min"),
+                    max = d("X-Max"),
+                    frames = i("X-Frames") ?: 1,
+                    frame = i("X-Frame") ?: frame ?: 0,
+                    rgb = r.header("X-Rgb").let { it == "1" || it.equals("true", true) },
+                    modality = r.header("X-Modality"),
+                )
+            }
+        }
+
+    private fun fmt(v: Double): String =
+        if (v == Math.floor(v) && !v.isInfinite()) v.toLong().toString() else v.toString()
 
     fun contentUrl(fileId: String): String = url("api/files/${seg(fileId)}/content").toString()
 

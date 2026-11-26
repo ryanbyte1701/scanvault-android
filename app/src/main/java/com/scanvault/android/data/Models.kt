@@ -105,3 +105,18 @@ data class ImportResult(
 
 @Serializable
 data class ErrorBody(val error: String? = null, val code: String? = null)
+
+/** A server-rendered DICOM frame plus the window/level and value range the server used. */
+class RenderedImage(
+    val bytes: ByteArray,
+    val center: Double,
+    val width: Double,
+    val defaultCenter: Double?,
+    val defaultWidth: Double?,
+    val min: Double?,
+    val max: Double?,
+    val frames: Int,
+    val frame: Int,
+    val rgb: Boolean,
+    val modality: String?,
+)

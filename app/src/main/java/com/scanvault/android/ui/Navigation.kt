@@ -30,6 +30,7 @@ fun ScanVaultNavHost(container: AppContainer) {
     val startDestination = remember { if (session == SessionState.SignedOut) "login" else "patients" }
 
     LaunchedEffect(session) {
+        if (session == SessionState.Ready) container.syncThemeFromServer()
         if (session == SessionState.SignedOut && nav.currentDestination?.route != "login") {
             nav.navigate("login") { popUpTo(0) { inclusive = true } }
         }
@@ -77,20 +78,24 @@ fun ScanVaultNavHost(container: AppContainer) {
             StudyScreen(
                 container, id,
                 onBack = { nav.popBackStack() },
-                onOpenImage = { fileId, name -> nav.navigate("image/${enc(fileId)}/${enc(name)}") },
+                onOpenImage = { fileId, name, isDicom ->
+                    nav.navigate("image/${enc(fileId)}/${enc(name)}?dicom=$isDicom")
+                },
             )
         }
         composable(
-            "image/{id}/{name}",
+            "image/{id}/{name}?dicom={dicom}",
             arguments = listOf(
                 navArgument("id") { type = NavType.StringType },
                 navArgument("name") { type = NavType.StringType },
+                navArgument("dicom") { type = NavType.BoolType; defaultValue = false },
             ),
         ) { entry ->
             ImageViewerScreen(
                 container,
                 fileId = entry.arguments!!.getString("id")!!,
                 name = entry.arguments!!.getString("name")!!,
+                isDicom = entry.arguments!!.getBoolean("dicom"),
                 onBack = { nav.popBackStack() },
             )
         }

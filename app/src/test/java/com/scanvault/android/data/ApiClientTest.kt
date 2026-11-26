@@ -109,6 +109,44 @@ class ApiClientTest {
         assertTrue(api.upload("s1", listOf(part), null).single().duplicate)
     }
 
+    @Test fun renderSendsWindowAndParsesHeaders() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("Content-Type", "image/jpeg")
+            .setHeader("X-Window-Center", "-600").setHeader("X-Window-Width", "1500")
+            .setHeader("X-Default-Center", "40").setHeader("X-Default-Width", "400")
+            .setHeader("X-Min", "-1024").setHeader("X-Max", "3071")
+            .setHeader("X-Frames", "120").setHeader("X-Frame", "5")
+            .setHeader("X-Rgb", "0").setHeader("X-Modality", "CT")
+            .setBody(okio.Buffer().write(byteArrayOf(1, 2, 3))))
+        val r = api.render("f1", -600.0, 1500.0, 5)
+        val req = server.takeRequest()
+        assertEquals("/api/files/f1/render?wc=-600&ww=1500&frame=5", req.path)
+        assertEquals(-600.0, r.center, 0.0)
+        assertEquals(400.0, r.defaultWidth!!, 0.0)
+        assertEquals(120, r.frames)
+        assertEquals("CT", r.modality)
+        assertEquals(3, r.bytes.size)
+    }
+
+    @Test fun renderWithoutWindowUsesFileDefault() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setHeader("X-Window-Center", "40")
+            .setHeader("X-Window-Width", "400").setBody("x"))
+        api.render("f1")
+        assertEquals("/api/files/f1/render", server.takeRequest().path)
+    }
+
+    @Test fun prefsRoundTrip() = runTest {
+        server.enqueue(json("""{"theme":"dark","dark_color":"#1a1022"}"""))
+        server.enqueue(json("""{"theme":"light","dark_color":"#000000"}"""))
+        assertEquals("#1a1022", api.prefs().darkColor)
+        api.savePrefs(ServerPrefs(theme = "light", darkColor = "#000000"))
+        server.takeRequest()
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        val body = put.body.readUtf8()
+        assertTrue(body.contains("\"dark_color\":\"#000000\""))
+        assertTrue(body.contains("\"theme\":\"light\""))
+    }
+
     @Test fun unlockPostsRecoveryKey() = runTest {
         server.enqueue(json("""{"unlocked":true}"""))
         api.unlock(recoveryKey = "AAAA-BBBB")

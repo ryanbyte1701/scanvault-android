@@ -150,7 +150,7 @@ fun StudyScreen(
     container: AppContainer,
     studyId: String,
     onBack: () -> Unit,
-    onOpenImage: (fileId: String, name: String) -> Unit,
+    onOpenImage: (fileId: String, name: String, isDicom: Boolean) -> Unit,
 ) {
     val vm: StudyViewModel = viewModel(key = "study-$studyId") { StudyViewModel(container, studyId) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -207,8 +207,8 @@ fun StudyScreen(
     }
 
     fun open(file: VaultFile) {
-        if (file.isImage) {
-            onOpenImage(file.id, file.filename)
+        if (file.isImage || file.kind == VaultFile.KIND_DICOM) {
+            onOpenImage(file.id, file.filename, file.kind == VaultFile.KIND_DICOM)
             return
         }
         scope.launch {

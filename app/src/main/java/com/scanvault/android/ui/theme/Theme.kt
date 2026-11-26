@@ -12,7 +12,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.compositeOver
 import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
-import com.scanvault.android.data.DarkPalette
+import com.scanvault.android.data.DarkColors
 import com.scanvault.android.data.ThemeMode
 import com.scanvault.android.data.ThemeSettings
 
@@ -22,11 +22,13 @@ private val Light = lightColorScheme(
     tertiary = Color(0xFF2E7D6B),
 )
 
-/** Builds a full dark scheme from the user's chosen palette. */
-fun darkSchemeFor(palette: DarkPalette): ColorScheme {
-    val accent = Color(palette.accent)
-    val bg = Color(palette.background)
-    val surface = Color(palette.surface)
+/** Builds a full dark scheme from the user's chosen dark color (same derivation as the web app). */
+fun darkSchemeFor(darkColor: String): ColorScheme {
+    val p = DarkColors.from(darkColor)
+    val accent = Color(p.accent)
+    val bg = Color(p.background)
+    val surface = Color(p.surface)
+    val high = Color(p.surfaceHigh)
     val onAccent = if (accent.luminance() > 0.4f) Color(0xFF0B1A24) else Color.White
     val onBg = Color(0xFFE3E6E8)
     return darkColorScheme(
@@ -47,10 +49,10 @@ fun darkSchemeFor(palette: DarkPalette): ColorScheme {
         surfaceContainerLowest = bg,
         surfaceContainerLow = surface,
         surfaceContainer = surface,
-        surfaceContainerHigh = Color.White.copy(alpha = 0.05f).compositeOver(surface),
-        surfaceContainerHighest = Color.White.copy(alpha = 0.09f).compositeOver(surface),
+        surfaceContainerHigh = high,
+        surfaceContainerHighest = Color.White.copy(alpha = 0.04f).compositeOver(high),
         outline = Color(0xFF8A9298),
-        outlineVariant = Color(0xFF3A4247),
+        outlineVariant = Color.White.copy(alpha = 0.14f).compositeOver(bg),
     )
 }
 
@@ -65,7 +67,7 @@ fun isAppInDarkTheme(settings: ThemeSettings): Boolean = when (settings.mode) {
 fun ScanVaultTheme(settings: ThemeSettings, content: @Composable () -> Unit) {
     val dark = isAppInDarkTheme(settings)
     val colors = when {
-        dark -> darkSchemeFor(settings.darkPalette)
+        dark -> darkSchemeFor(settings.darkColor)
         settings.wallpaperColorsInLight && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
             dynamicLightColorScheme(LocalContext.current)
         else -> Light
