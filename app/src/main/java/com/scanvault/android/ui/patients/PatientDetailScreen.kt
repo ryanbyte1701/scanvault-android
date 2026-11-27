@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.FolderZip
 import androidx.compose.material.icons.filled.MedicalServices
 import androidx.compose.material.icons.filled.MoreVert
+import androidx.compose.material.icons.filled.Science
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -123,6 +124,7 @@ fun PatientDetailScreen(
     patientId: String,
     onBack: () -> Unit,
     onOpenStudy: (String) -> Unit,
+    onOpenLabs: () -> Unit = {},
 ) {
     val vm: PatientDetailViewModel = viewModel(key = "patient-$patientId") { PatientDetailViewModel(container, patientId) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -151,6 +153,7 @@ fun PatientDetailScreen(
                 title = { Text((state as? Loadable.Loaded<PatientDetail>)?.value?.patient?.name ?: "Patient") },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                 actions = {
+                    IconButton(onClick = onOpenLabs) { Icon(Icons.Default.Science, "Lab results") }
                     IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
                         DropdownMenuItem(

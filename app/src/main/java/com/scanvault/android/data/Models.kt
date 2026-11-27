@@ -143,3 +143,110 @@ class RenderedImage(
     val rgb: Boolean,
     val modality: String?,
 )
+
+// --- LabsVault -----------------------------------------------------------------------------
+
+/** One analyte the server knows (its catalog), for matching a test while reviewing. */
+@Serializable
+data class LabCatalogEntry(val key: String, val name: String, val loinc: String? = null, val panel: String? = null)
+
+@Serializable
+data class LabInfo(
+    val ocr: Boolean = false,
+    val catalog: List<LabCatalogEntry> = emptyList(),
+)
+
+/** One saved value of one test. */
+@Serializable
+data class LabPoint(
+    val id: String? = null,
+    @SerialName("report_id") val reportId: String? = null,
+    val date: String? = null,
+    val value: String = "",
+    @SerialName("value_num") val valueNum: Double? = null,
+    val unit: String? = null,
+    @SerialName("ref_low") val refLow: Double? = null,
+    @SerialName("ref_high") val refHigh: Double? = null,
+    @SerialName("ref_text") val refText: String? = null,
+    val flag: String? = null,
+    val source: String? = null,
+    @SerialName("lab_name") val labName: String? = null,
+)
+
+@Serializable
+data class LabAnalyte(
+    val key: String,
+    val name: String,
+    val loinc: String? = null,
+    val panel: String = "Other",
+    val unit: String? = null,
+    val count: Int = 0,
+    val latest: LabPoint,
+    /** [[date, number], ...] oldest first, for the sparkline. */
+    val spark: List<kotlinx.serialization.json.JsonArray> = emptyList(),
+) {
+    val sparkValues: List<Double>
+        get() = spark.mapNotNull { (it.getOrNull(1) as? kotlinx.serialization.json.JsonPrimitive)?.content?.toDoubleOrNull() }
+}
+
+@Serializable
+data class LabSeries(
+    val key: String,
+    val name: String,
+    val loinc: String? = null,
+    val units: List<String> = emptyList(),
+    val points: List<LabPoint> = emptyList(),
+)
+
+/** A result row of a report: parsed from the PDF (draft) or saved. Field names match the server. */
+@Serializable
+data class LabRow(
+    val name: String = "",
+    val value: String = "",
+    val analyte: String? = null,
+    val catalog: Boolean? = null,
+    val panel: String? = null,
+    val unit: String? = null,
+    @SerialName("ref_low") val refLow: Double? = null,
+    @SerialName("ref_high") val refHigh: Double? = null,
+    @SerialName("ref_text") val refText: String? = null,
+    val flag: String? = null,
+    @SerialName("prev_value") val prevValue: String? = null,
+    @SerialName("prev_date") val prevDate: String? = null,
+    val confidence: String? = null,
+    val source: String? = null,
+    val include: Boolean = true,
+)
+
+@Serializable
+data class LabReport(
+    val id: String,
+    @SerialName("patient_id") val patientId: String,
+    val status: String = "draft",
+    val lab: String? = null,
+    @SerialName("lab_name") val labName: String? = null,
+    val collected: String? = null,
+    val reported: String? = null,
+    @SerialName("ordering_provider") val orderingProvider: String? = null,
+    @SerialName("file_id") val fileId: String? = null,
+    val filename: String? = null,
+    val method: String? = null,
+    @SerialName("result_count") val resultCount: Int = 0,
+    @SerialName("flagged_count") val flaggedCount: Int = 0,
+    val rows: List<LabRow> = emptyList(),
+    val warnings: List<String> = emptyList(),
+    val duplicate: Boolean = false,
+) {
+    val isDraft: Boolean get() = status == "draft"
+}
+
+@Serializable
+data class LabReportUpdate(
+    val lab: String? = null,
+    val collected: String? = null,
+    val reported: String? = null,
+    @SerialName("ordering_provider") val orderingProvider: String? = null,
+    val rows: List<LabRow>? = null,
+    val save: Boolean = false,
+    @SerialName("import_previous") val importPrevious: Boolean = true,
+)

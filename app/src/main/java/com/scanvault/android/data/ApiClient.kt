@@ -216,6 +216,36 @@ class ApiClient(
         }
     }
 
+    // --- LabsVault -----------------------------------------------------------------------
+
+    suspend fun labInfo(): LabInfo = get("api/labs/info", LabInfo.serializer())
+
+    suspend fun labAnalytes(patientId: String): List<LabAnalyte> =
+        get("api/patients/${seg(patientId)}/labs/analytes", ListSerializer(LabAnalyte.serializer()))
+
+    suspend fun labSeries(patientId: String, key: String): LabSeries =
+        get("api/patients/${seg(patientId)}/labs/analytes/${seg(key)}", LabSeries.serializer())
+
+    suspend fun labReports(patientId: String): List<LabReport> =
+        get("api/patients/${seg(patientId)}/labs/reports", ListSerializer(LabReport.serializer()))
+
+    suspend fun labReport(id: String): LabReport = get("api/labs/reports/${seg(id)}", LabReport.serializer())
+
+    /** Uploads one lab report PDF or photo; the server reads it and returns a draft to review. */
+    suspend fun uploadLabReport(patientId: String, part: UploadPart): LabReport =
+        send("POST", "api/patients/${seg(patientId)}/labs/upload", multipart(listOf(part), null), LabReport.serializer(),
+            client = slowHttp)
+
+    /** A report typed in by hand. */
+    suspend fun createLabReport(patientId: String, update: LabReportUpdate): LabReport =
+        send("POST", "api/patients/${seg(patientId)}/labs/reports", jsonBody(update, LabReportUpdate.serializer()),
+            LabReport.serializer())
+
+    suspend fun updateLabReport(id: String, update: LabReportUpdate): LabReport =
+        send("PUT", "api/labs/reports/${seg(id)}", jsonBody(update, LabReportUpdate.serializer()), LabReport.serializer())
+
+    suspend fun deleteLabReport(id: String) = sendNoContent("DELETE", "api/labs/reports/${seg(id)}", null)
+
     // --- Plumbing ------------------------------------------------------------------------
 
     private fun seg(id: String): String = java.net.URLEncoder.encode(id, "UTF-8").replace("+", "%20")

@@ -19,6 +19,9 @@ import com.scanvault.android.data.AppContainer
 import com.scanvault.android.data.SessionState
 import com.scanvault.android.ui.components.UnlockDialog
 import com.scanvault.android.ui.files.ImageViewerScreen
+import com.scanvault.android.ui.labs.LabReviewScreen
+import com.scanvault.android.ui.labs.LabTrendScreen
+import com.scanvault.android.ui.labs.LabsScreen
 import com.scanvault.android.ui.login.LoginScreen
 import com.scanvault.android.ui.patients.PatientDetailScreen
 import com.scanvault.android.ui.patients.PatientsScreen
@@ -93,6 +96,34 @@ fun ScanVaultNavHost(container: AppContainer) {
                 container, id,
                 onBack = { nav.popBackStack() },
                 onOpenStudy = { nav.navigate("study/${enc(it)}") },
+                onOpenLabs = { nav.navigate("labs/${enc(id)}") },
+            )
+        }
+        composable(
+            "labs/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+        ) { entry ->
+            val id = entry.arguments!!.getString("id")!!
+            LabsScreen(
+                container, id,
+                onBack = { nav.popBackStack() },
+                onOpenReport = { nav.navigate("labreport/${enc(it)}") },
+                onOpenAnalyte = { nav.navigate("labtrend/${enc(id)}/${enc(it)}") },
+            )
+        }
+        composable(
+            "labreport/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+        ) { entry ->
+            LabReviewScreen(container, entry.arguments!!.getString("id")!!, onDone = { nav.popBackStack() })
+        }
+        composable(
+            "labtrend/{pid}/{key}",
+            arguments = listOf(navArgument("pid") { type = NavType.StringType }, navArgument("key") { type = NavType.StringType }),
+        ) { entry ->
+            LabTrendScreen(
+                container, entry.arguments!!.getString("pid")!!, entry.arguments!!.getString("key")!!,
+                onBack = { nav.popBackStack() },
             )
         }
         composable(
