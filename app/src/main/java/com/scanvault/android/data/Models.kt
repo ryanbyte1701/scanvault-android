@@ -85,6 +85,27 @@ data class Study(
     @SerialName("created_at") val createdAt: String? = null,
 )
 
+/** Another study of the same patient, scored for how well it compares with the one being viewed. */
+@Serializable
+data class SimilarStudy(
+    val id: String,
+    @SerialName("patient_id") val patientId: String,
+    val title: String,
+    val modality: String? = null,
+    @SerialName("study_date") val studyDate: String? = null,
+    val facility: String? = null,
+    @SerialName("body_part") val bodyPart: String? = null,
+    val similarity: Double = 0.0,
+    /** Same kind of exam: the server's pick for a side-by-side comparison. */
+    val suggested: Boolean = false,
+    @SerialName("match_reasons") val matchReasons: List<String> = emptyList(),
+    @SerialName("days_apart") val daysApart: Int? = null,
+    /** "prior", "later" or "same day", relative to the study being viewed. */
+    val relation: String? = null,
+    @SerialName("thumbnail_ids") val thumbnailIds: List<String> = emptyList(),
+    @SerialName("image_count") val imageCount: Int = 0,
+)
+
 @Serializable
 data class StudyInput(
     val title: String,

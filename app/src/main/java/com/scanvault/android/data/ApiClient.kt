@@ -144,6 +144,10 @@ class ApiClient(
 
     suspend fun deleteStudy(id: String) = sendNoContent("DELETE", "api/studies/${seg(id)}", null)
 
+    /** The patient's other studies, most comparable first (needs a server with study comparison). */
+    suspend fun similarStudies(id: String): List<SimilarStudy> =
+        get("api/studies/${seg(id)}/similar", ListSerializer(SimilarStudy.serializer()))
+
     // --- Files ---------------------------------------------------------------------------
 
     suspend fun files(studyId: String): List<VaultFile> =

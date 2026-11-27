@@ -43,6 +43,9 @@ patient data. They are rendered by the screenshot tests described under [Buildin
   (images, PDFs, DICOM, anything else). Each file is tagged `image`, `report`, `dicom` or `other`.
 - Import DICOM files or a zipped imaging-CD export into a patient; the server groups them into studies.
 - View images full-screen with pinch-zoom; open PDFs and other files in another app.
+- Compare two studies of a patient side by side (stacked when the phone is upright): pick from
+  suggested matches (same kind of scan and body part, closest in time), then zoom, pan,
+  window/level and slices stay linked. Unlink to line up anatomy; relinking keeps the offset.
 - Delete patients, studies and files (long-press a file).
 
 Encryption and the Google Drive / Box / SFTP backups all happen on the server. The phone never
@@ -102,6 +105,7 @@ The app expects these endpoints (all JSON, `Authorization: Bearer <token>`, erro
 | POST | `/api/patients/{id}/import` | multipart `file` (repeatable): DICOM or .zip |
 | GET/POST | `/api/patients/{id}/studies` | list / create |
 | GET/DELETE | `/api/studies/{id}` | |
+| GET | `/api/studies/{id}/similar` | the patient's other studies, best match for comparison first |
 | GET/POST | `/api/studies/{id}/files` | list / multipart upload (`file`, optional `kind`) |
 | DELETE | `/api/files/{id}` | |
 | GET | `/api/files/{id}/content` | decrypted bytes |

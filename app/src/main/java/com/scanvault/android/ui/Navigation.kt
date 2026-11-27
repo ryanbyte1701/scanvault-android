@@ -18,6 +18,8 @@ import androidx.navigation.navArgument
 import com.scanvault.android.data.AppContainer
 import com.scanvault.android.data.SessionState
 import com.scanvault.android.ui.components.UnlockDialog
+import com.scanvault.android.ui.compare.ComparePickScreen
+import com.scanvault.android.ui.compare.CompareScreen
 import com.scanvault.android.ui.files.ImageViewerScreen
 import com.scanvault.android.ui.login.LoginScreen
 import com.scanvault.android.ui.patients.PatientDetailScreen
@@ -106,6 +108,32 @@ fun ScanVaultNavHost(container: AppContainer) {
                 onOpenImage = { fileId, name, isDicom ->
                     nav.navigate("image/${enc(fileId)}/${enc(name)}?dicom=$isDicom")
                 },
+                onCompare = { nav.navigate("compare/${enc(id)}") },
+            )
+        }
+        composable(
+            "compare/{id}",
+            arguments = listOf(navArgument("id") { type = NavType.StringType }),
+        ) { entry ->
+            val id = entry.arguments!!.getString("id")!!
+            ComparePickScreen(
+                container, id,
+                onBack = { nav.popBackStack() },
+                onPick = { other -> nav.navigate("compare/${enc(id)}/${enc(other)}") },
+            )
+        }
+        composable(
+            "compare/{a}/{b}",
+            arguments = listOf(
+                navArgument("a") { type = NavType.StringType },
+                navArgument("b") { type = NavType.StringType },
+            ),
+        ) { entry ->
+            CompareScreen(
+                container,
+                firstId = entry.arguments!!.getString("a")!!,
+                secondId = entry.arguments!!.getString("b")!!,
+                onBack = { nav.popBackStack() },
             )
         }
         composable(

@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.Compare
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Description
 import androidx.compose.material.icons.automirrored.filled.InsertDriveFile
@@ -246,6 +247,7 @@ fun StudyScreen(
     studyId: String,
     onBack: () -> Unit,
     onOpenImage: (fileId: String, name: String, isDicom: Boolean) -> Unit,
+    onCompare: () -> Unit = {},
 ) {
     val vm: StudyViewModel = viewModel(key = "study-$studyId") { StudyViewModel(container, studyId) }
     val state by vm.state.collectAsStateWithLifecycle()
@@ -332,6 +334,9 @@ fun StudyScreen(
                 },
                 navigationIcon = { IconButton(onClick = onBack) { Icon(Icons.AutoMirrored.Filled.ArrowBack, "Back") } },
                 actions = {
+                    val hasImages = (state as? Loadable.Loaded<StudyDetail>)?.value?.files
+                        ?.any { it.kind == VaultFile.KIND_DICOM || it.isImage } == true
+                    if (hasImages) IconButton(onClick = onCompare) { Icon(Icons.Default.Compare, "Compare with another study") }
                     IconButton(onClick = vm::load) { Icon(Icons.Default.Refresh, "Refresh") }
                     IconButton(onClick = { menu = true }) { Icon(Icons.Default.MoreVert, "More") }
                     DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {

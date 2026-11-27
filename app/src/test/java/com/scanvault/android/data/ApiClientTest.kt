@@ -56,6 +56,21 @@ class ApiClientTest {
         assertEquals("Bearer tok123", server.takeRequest().getHeader("Authorization"))
     }
 
+    @Test fun similarStudiesParse() = runTest {
+        server.enqueue(json("""[{"id":"s2","patient_id":"p1","title":"MRI left knee","modality":"MR","study_date":"2024-06-10",
+            "similarity":7.0,"suggested":true,"match_reasons":["Same type (MRI)","Same body part (knee)"],"days_apart":642,
+            "relation":"prior","thumbnail_ids":["f9"],"image_count":8,"file_count":9,"body_part":"KNEE"}]"""))
+        val list = api.similarStudies("s 1")
+        assertEquals("/api/studies/s%201/similar", server.takeRequest().path)
+        val s = list.single()
+        assertTrue(s.suggested)
+        assertEquals(listOf("Same type (MRI)", "Same body part (knee)"), s.matchReasons)
+        assertEquals(642, s.daysApart)
+        assertEquals("prior", s.relation)
+        assertEquals(listOf("f9"), s.thumbnailIds)
+        assertEquals(8, s.imageCount)
+    }
+
     @Test fun filesParseDicomAndThumbnailFlags() = runTest {
         server.enqueue(json("""[{"id":"f1","study_id":"s1","filename":"IM0001.dcm","content_type":"application/dicom",
             "size_bytes":524288,"kind":"dicom","has_thumbnail":true,"dicom":{"modality":"MR","institution":"X"}}]"""))
